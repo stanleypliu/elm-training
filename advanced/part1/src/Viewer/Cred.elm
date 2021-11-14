@@ -1,4 +1,4 @@
-module Viewer.Cred exposing (Cred, addHeader, addHeaderIfAvailable, decoder, encodeToken)
+module Viewer.Cred exposing (Cred, addHeader, addHeaderIfAvailable, credUsername, decoder, encodeToken)
 
 import HttpBuilder exposing (RequestBuilder, withHeader)
 import Json.Decode as Decode exposing (Decoder)
@@ -11,18 +11,16 @@ import Username exposing (Username)
 -- TYPES
 
 
-type alias Cred =
-    {- 👉 TODO: Make Cred an opaque type, then fix the resulting compiler errors.
-       Afterwards, it should no longer be possible for any other module to access
-       this `token` value directly!
+type Cred
+    = {- 👉 TODO: Make Cred an opaque type, then fix the resulting compiler errors.
+         Afterwards, it should no longer be possible for any other module to access
+         this `token` value directly!
 
-       💡 HINT: Other modules still depend on being able to access the
-       `username` value. Expand this module's API to expose a new way for them
-       to access the `username` without also giving them access to `token`.
-    -}
-    { username : Username
-    , token : String
-    }
+         💡 HINT: Other modules still depend on being able to access the
+         `username` value. Expand this module's API to expose a new way for them
+         to access the `username` without also giving them access to `token`.
+      -}
+      Cred { username : Username, token : String }
 
 
 
@@ -31,9 +29,9 @@ type alias Cred =
 
 decoder : Decoder Cred
 decoder =
-    Decode.succeed Cred
-        |> required "username" Username.decoder
-        |> required "token" Decode.string
+    Decode.map2 (\username token -> Cred { username = username, token = token })
+        (Decode.field "username" Username.decoder)
+        (Decode.field "token" Decode.string)
 
 
 
@@ -41,12 +39,17 @@ decoder =
 
 
 encodeToken : Cred -> Value
-encodeToken cred =
+encodeToken (Cred cred) =
     Encode.string cred.token
 
 
+credUsername : Cred -> Username
+credUsername (Cred cred) =
+    cred.username
+
+
 addHeader : Cred -> RequestBuilder a -> RequestBuilder a
-addHeader cred builder =
+addHeader (Cred cred) builder =
     builder
         |> withHeader "authorization" ("Token " ++ cred.token)
 
