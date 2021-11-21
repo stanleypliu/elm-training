@@ -78,24 +78,24 @@ init session username =
             |> Http.toTask
             |> Task.mapError (Tuple.pair username)
             |> Task.attempt CompletedAuthorLoad
-        , fetchFeed model defaultFeedTab 1
+        , fetchFeed model.author model.session defaultFeedTab 1
         , Task.perform GotTimeZone Time.here
         , Task.perform (\_ -> PassedSlowLoadThreshold) Loading.slowThreshold
         ]
     )
 
 
-currentUsername : Model -> Username
-currentUsername model =
-    case model.author of
+currentUsername : Status Author -> Username
+currentUsername author =
+    case author of
         Loading username ->
             username
 
         LoadingSlowly username ->
             username
 
-        Loaded author ->
-            Author.username author
+        Loaded auth ->
+            Author.username auth
 
         Failed username ->
             username
@@ -110,19 +110,14 @@ defaultFeedTab =
 -- HTTP
 
 
-{-| 👉 TODO: refactor this to accept narrower types than the entire Model.
-
-    💡 HINT: It may end up with multiple arguments!
-
--}
-fetchFeed : Model -> FeedTab -> Int -> Cmd Msg
-fetchFeed model feedTabs page =
+fetchFeed : Status Author -> Session -> FeedTab -> Int -> Cmd Msg
+fetchFeed author session feedTabs page =
     let
         username =
-            currentUsername model
+            currentUsername author
 
         maybeCred =
-            Session.cred model.session
+            Session.cred session
 
         ( extraParamName, extraParamVal ) =
             case feedTabs of
@@ -138,7 +133,7 @@ fetchFeed model feedTabs page =
         |> HttpBuilder.withQueryParam extraParamName extraParamVal
         |> Cred.addHeaderIfAvailable maybeCred
         |> PaginatedList.fromRequestBuilder articlesPerPage page
-        |> Task.map (Feed.init model.session)
+        |> Task.map (Feed.init session)
         |> Task.mapError (Tuple.pair username)
         |> Task.attempt CompletedFeedLoad
 
@@ -351,12 +346,12 @@ update msg model =
 
         ClickedTab tab ->
             ( { model | feedTab = tab }
-            , fetchFeed model tab 1
+            , fetchFeed model.author model.session tab 1
             )
 
         ClickedFeedPage page ->
             ( { model | feedPage = page }
-            , fetchFeed model model.feedTab page
+            , fetchFeed model.author model.session model.feedTab page
             )
 
         CompletedFollowChange (Ok newAuthor) ->
